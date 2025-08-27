@@ -20,7 +20,7 @@ st.markdown("Make sure you have set API keys in `.streamlit/secrets.toml` or `.e
 # ---------------- Sidebar Login ----------------
 st.sidebar.header("Login / Session Status")
 
-# Check if already logged in
+# Display current login status
 if 'conn' in st.session_state:
     st.sidebar.success("✅ Already logged in")
 else:
@@ -29,12 +29,14 @@ else:
 # Login button
 if st.sidebar.button("Login"):
     try:
-        # get_connection() handles credentials from Streamlit secrets or .env
+        # Attempt login using api_utils
         conn = get_connection()
         st.session_state['conn'] = conn
         st.sidebar.success("✅ Login successful!")
     except Exception as e:
+        # Show full error on screen for debugging
         st.sidebar.error(f"❌ Login failed: {e}")
+        st.error(f"Login Error Details: {e}")
 
 # Logout button
 if 'conn' in st.session_state:
