@@ -1,5 +1,6 @@
 import streamlit as st
 from utils.api_utils import get_connection
+import os
 
 st.set_page_config(page_title="Trading Dashboard", layout="wide")
 st.title("Trading Dashboard - Home")
@@ -15,28 +16,34 @@ Use the left sidebar to navigate pages:
 - Scanners, Backtesting, Settings
 """)
 
-st.markdown("Make sure you have set API keys in `.streamlit/secrets.toml` or `.env`.")
+st.markdown("Ensure API keys in `.streamlit/secrets.toml` or `.env`.")
 
 # ---------------- Sidebar Login ----------------
 st.sidebar.header("Login / Session Status")
 
-# Display current login status
+# Show current status
 if 'conn' in st.session_state:
     st.sidebar.success("✅ Already logged in")
 else:
     st.sidebar.warning("❌ Not logged in")
 
+# Debug info for secrets
+st.sidebar.subheader("Debug Info")
+st.sidebar.text(f"INTEGRATE_API_TOKEN: {bool(os.getenv('INTEGRATE_API_TOKEN'))}")
+st.sidebar.text(f"INTEGRATE_API_SECRET: {bool(os.getenv('INTEGRATE_API_SECRET'))}")
+st.sidebar.text(f"TOTP_SECRET: {bool(os.getenv('TOTP_SECRET'))}")
+
 # Login button
 if st.sidebar.button("Login"):
     try:
-        # Attempt login using api_utils
+        st.info("Trying to login...")
         conn = get_connection()
         st.session_state['conn'] = conn
         st.sidebar.success("✅ Login successful!")
+        st.success("Login successful!")
     except Exception as e:
-        # Show full error on screen for debugging
         st.sidebar.error(f"❌ Login failed: {e}")
-        st.error(f"Login Error Details: {e}")
+        st.error(f"Error Details: {e}")
 
 # Logout button
 if 'conn' in st.session_state:
@@ -44,8 +51,8 @@ if 'conn' in st.session_state:
         st.session_state.pop('conn')
         st.sidebar.info("Logged out successfully")
 
-# ---------------- Main Page ----------------
+# Main page message
 if 'conn' in st.session_state:
-    st.info("You are logged in. You can now access API features on other pages.")
+    st.info("You are logged in. Access API features now.")
 else:
     st.warning("Please login from the sidebar to access API features.")
