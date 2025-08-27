@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from api_utils import SessionManager, SessionError
+from utils.api_utils import SessionManager, SessionError
 
 # ----------------------------
 # Load secrets
