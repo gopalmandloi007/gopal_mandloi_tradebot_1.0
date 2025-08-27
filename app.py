@@ -1,58 +1,63 @@
 import streamlit as st
-from utils.api_utils import get_connection
 import os
+from api_utils import SessionManager, SessionError
 
-st.set_page_config(page_title="Trading Dashboard", layout="wide")
-st.title("Trading Dashboard - Home")
+# ----------------------------
+# Load secrets
+# ----------------------------
+def get_secret(key: str, default=None):
+    if key in st.secrets:
+        return st.secrets[key]
+    return os.getenv(key, default)
 
-st.markdown("""
-This repo integrates Definedge Integrate API.
-Use the left sidebar to navigate pages:
-- Portfolio
-- Orders
-- Orderbook & Tradebook
-- Auto Orders (GTT)
-- Historical Data
-- Scanners, Backtesting, Settings
-""")
+api_token = get_secret("INTEGRATE_API_TOKEN")
+api_secret = get_secret("INTEGRATE_API_SECRET")
+totp_secret = get_secret("TOTP_SECRET")
 
-st.markdown("Ensure API keys in `.streamlit/secrets.toml` or `.env`.")
+# ----------------------------
+# UI Setup
+# ----------------------------
+st.set_page_config(page_title="TradeBot Login", layout="wide")
+st.title("🔐 Definedge Login System")
 
-# ---------------- Sidebar Login ----------------
-st.sidebar.header("Login / Session Status")
+sm = SessionManager(api_token, api_secret, totp_secret)
 
-# Show current status
-if 'conn' in st.session_state:
-    st.sidebar.success("✅ Already logged in")
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("Login with TOTP (auto)"):
+        try:
+            if sm.login_with_totp():
+                st.success("✅ Login Successful with TOTP")
+            else:
+                st.error("❌ Login Failed with TOTP")
+        except SessionError as e:
+            st.error(str(e))
+
+with col2:
+    if st.button("Step 1: Request OTP"):
+        otp_token = sm.request_otp()
+        st.session_state["otp_token"] = otp_token
+        st.info(f"OTP Token generated: {otp_token}")
+
+    otp_code = st.text_input("Enter OTP")
+    if st.button("Step 2: Verify OTP"):
+        otp_token = st.session_state.get("otp_token")
+        if not otp_token:
+            st.warning("Please request OTP first")
+        else:
+            if sm.verify_otp(otp_token, otp_code):
+                st.success("✅ Login Successful with Manual OTP")
+            else:
+                st.error("❌ OTP Verification Failed")
+
+# ----------------------------
+# Status
+# ----------------------------
+st.divider()
+st.subheader("Session Status")
+if sm.is_logged_in():
+    st.success("✅ Logged in")
+    st.json(sm.get_auth_headers())
 else:
-    st.sidebar.warning("❌ Not logged in")
-
-# Debug info for secrets
-st.sidebar.subheader("Debug Info")
-st.sidebar.text(f"INTEGRATE_API_TOKEN: {bool(os.getenv('INTEGRATE_API_TOKEN'))}")
-st.sidebar.text(f"INTEGRATE_API_SECRET: {bool(os.getenv('INTEGRATE_API_SECRET'))}")
-st.sidebar.text(f"TOTP_SECRET: {bool(os.getenv('TOTP_SECRET'))}")
-
-# Login button
-if st.sidebar.button("Login"):
-    try:
-        st.info("Trying to login...")
-        conn = get_connection()
-        st.session_state['conn'] = conn
-        st.sidebar.success("✅ Login successful!")
-        st.success("Login successful!")
-    except Exception as e:
-        st.sidebar.error(f"❌ Login failed: {e}")
-        st.error(f"Error Details: {e}")
-
-# Logout button
-if 'conn' in st.session_state:
-    if st.sidebar.button("Logout"):
-        st.session_state.pop('conn')
-        st.sidebar.info("Logged out successfully")
-
-# Main page message
-if 'conn' in st.session_state:
-    st.info("You are logged in. Access API features now.")
-else:
-    st.warning("Please login from the sidebar to access API features.")
+    st.error("❌ Not logged in")
