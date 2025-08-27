@@ -1,70 +1,79 @@
-import os
+import logging
 import pyotp
 import requests
-import logging
-import streamlit as st
 
-# Logger
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger(__name__)
-
+BASE_URL = "https://api.definedgesecurities.com"  # Main Definedge endpoint
 
 class SessionError(Exception):
     pass
 
-
 class SessionManager:
-    def __init__(self, api_token: str, api_secret: str, totp_secret: str):
+    def __init__(self, api_token, api_secret, totp_secret=None):
         self.api_token = api_token
         self.api_secret = api_secret
         self.totp_secret = totp_secret
-
-        self.uid = None
         self.api_session_key = None
         self.susertoken = None
+        self.uid = None
+
+    def login(self, prefer_totp=True):
+        """
+        Performs login with API token/secret and TOTP.
+        """
+        if not self.api_token or not self.api_secret:
+            raise SessionError("Missing API token/secret")
+
+        otp = None
+        if prefer_totp and self.totp_secret:
+            otp = pyotp.TOTP(self.totp_secret).now()
+
+        payload = {
+            "api_key": self.api_token,
+            "api_secret": self.api_secret,
+        }
+        if otp:
+            payload["otp"] = otp
+
+        url = f"{BASE_URL}/integrate/v1/session"
+        resp = requests.post(url, json=payload)
+
+        if resp.status_code != 200:
+            raise SessionError(f"Login failed: {resp.text}")
+
+        data = resp.json()
+        if "data" not in data or "susertoken" not in data["data"]:
+            raise SessionError(f"Unexpected response: {data}")
+
+        self.api_session_key = data["data"]["session_key"]
+        self.susertoken = data["data"]["susertoken"]
+        self.uid = data["data"]["uid"]
+
+        return data
 
     def is_logged_in(self):
-        return self.api_session_key is not None and self.susertoken is not None
+        return bool(self.api_session_key and self.susertoken)
 
     def get_auth_headers(self):
         if not self.is_logged_in():
-            raise SessionError("Not logged in yet")
+            raise SessionError("Not logged in. Please call login() first.")
         return {
             "Authorization": f"Bearer {self.api_session_key}",
-            "x-session-token": self.susertoken
+            "x-session-token": self.susertoken,
         }
 
-    # --------------------------
-    # Login with TOTP
-    # --------------------------
-    def login_with_totp(self):
-        try:
-            otp = pyotp.TOTP(self.totp_secret).now()
-            logger.debug(f"Generated TOTP: {otp}")
+    def call_api(self, method, endpoint, params=None, data=None):
+        """
+        Generic wrapper to call Definedge APIs.
+        """
+        if not self.is_logged_in():
+            raise SessionError("Not logged in")
 
-            # Dummy request simulation
-            # TODO: replace with real API call
-            if otp:
-                self.uid = "demo_uid"
-                self.api_session_key = "demo_api_session_key"
-                self.susertoken = "demo_susertoken"
-                return True
-            return False
-        except Exception as e:
-            raise SessionError(f"TOTP login failed: {str(e)}")
+        url = f"{BASE_URL}{endpoint}"
+        headers = self.get_auth_headers()
 
-    # --------------------------
-    # Manual OTP Flow
-    # --------------------------
-    def request_otp(self):
-        # Simulate otp_token generation
-        otp_token = "dummy_otp_token"
-        return otp_token
+        resp = requests.request(method, url, headers=headers, params=params, json=data)
 
-    def verify_otp(self, otp_token, otp_code):
-        if otp_token and otp_code == "123456":  # simulation
-            self.uid = "demo_uid"
-            self.api_session_key = "demo_api_session_key"
-            self.susertoken = "demo_susertoken"
-            return True
-        return False
+        if resp.status_code != 200:
+            raise SessionError(f"API call failed {resp.status_code}: {resp.text}")
+
+        return resp.json()
