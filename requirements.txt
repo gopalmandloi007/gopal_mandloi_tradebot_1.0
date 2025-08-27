@@ -2,4 +2,7 @@ streamlit
 pandas
 numpy
 requests
+pyintegrate
+python-dotenv
+pyotp
 websocket-client
