@@ -1,29 +1,33 @@
 import streamlit as st
-from utils import api_utils
+from utils.api_utils import login_step1, login_step2_manual, login_step2_auto
 
-st.title("Definedge Secure Login")
+st.title("Definedge Login Demo")
 
-if "otp_token" not in st.session_state:
-    st.session_state.otp_token = None
-if "api_session_key" not in st.session_state:
-    st.session_state.api_session_key = None
-
-# Step 1
-if st.button("Send OTP"):
+if st.button("Step 1: Request OTP Token"):
     try:
-        res = api_utils.login_step1()
-        st.session_state.otp_token = res.get("otp_token")
-        st.success(f"OTP sent ✅ (Check mobile/email)")
+        step1_data = login_step1()
+        st.session_state["otp_token"] = step1_data.get("otp_token")
+        st.success(f"OTP token received: {st.session_state['otp_token']}")
     except Exception as e:
         st.error(f"Error in Step 1: {e}")
 
-# Step 2
-if st.session_state.otp_token:
-    otp = st.text_input("Enter OTP", type="password")
-    if st.button("Verify OTP"):
+if "otp_token" in st.session_state:
+    st.subheader("Step 2 Options")
+
+    # Manual OTP
+    otp_input = st.text_input("Enter OTP received on mobile/email")
+    if st.button("Submit OTP Manually"):
         try:
-            res = api_utils.login_step2(st.session_state.otp_token, otp)
-            st.session_state.api_session_key = res.get("api_session_key")
-            st.success(f"Login Successful 🎉\nAPI Session Key: {st.session_state.api_session_key}")
+            data = login_step2_manual(st.session_state["otp_token"], otp_input)
+            st.json(data)
         except Exception as e:
-            st.error(f"Error in Step 2: {e}")
+            st.error(f"Error in Step 2 Manual: {e}")
+
+    # Auto OTP via TOTP_SECRET
+    if st.button("Submit OTP Automatically (TOTP)"):
+        try:
+            data = login_step2_auto(st.session_state["otp_token"])
+            st.write(f"Auto OTP used: {data['used_otp']}")
+            st.json(data["response"])
+        except Exception as e:
+            st.error(f"Error in Step 2 Auto: {e}")
