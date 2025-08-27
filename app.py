@@ -1,5 +1,5 @@
 import streamlit as st
-from api_utils import SessionManager, SessionError
+from utils.api_utils import SessionManager, SessionError
 
 st.set_page_config(page_title="TradeBot", layout="wide")
 st.title("💹 Definedge TradeBot")
