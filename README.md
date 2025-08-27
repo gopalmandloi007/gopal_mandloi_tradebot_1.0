@@ -1,3 +1,6 @@
-# Trading Dashboard App
+# gopal_mandloi_tradebot_1.0
 
-This is a Streamlit-based trading dashboard.
+Trading dashboard skeleton with Definedge Integrate API integration.
+
+## Setup
+1. Install dependencies:
