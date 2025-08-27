@@ -1,63 +1,48 @@
 import streamlit as st
-import os
-from utils.api_utils import SessionManager, SessionError
+from api_utils import SessionManager, SessionError
 
-# ----------------------------
-# Load secrets
-# ----------------------------
-def get_secret(key: str, default=None):
-    if key in st.secrets:
-        return st.secrets[key]
-    return os.getenv(key, default)
+st.set_page_config(page_title="TradeBot", layout="wide")
+st.title("💹 Definedge TradeBot")
 
-api_token = get_secret("INTEGRATE_API_TOKEN")
-api_secret = get_secret("INTEGRATE_API_SECRET")
-totp_secret = get_secret("TOTP_SECRET")
+# ✅ Load credentials from secrets
+api_token = st.secrets["INTEGRATE_API_TOKEN"]
+api_secret = st.secrets["INTEGRATE_API_SECRET"]
+totp_secret = st.secrets.get("TOTP_SECRET")
 
-# ----------------------------
-# UI Setup
-# ----------------------------
-st.set_page_config(page_title="TradeBot Login", layout="wide")
-st.title("🔐 Definedge Login System")
+# ✅ Initialize SessionManager
+if "sm" not in st.session_state:
+    st.session_state["sm"] = SessionManager(api_token, api_secret, totp_secret)
 
-sm = SessionManager(api_token, api_secret, totp_secret)
+sm = st.session_state["sm"]
 
-col1, col2 = st.columns(2)
+# --- Login Button ---
+if st.button("🔑 Login"):
+    try:
+        resp = sm.login(prefer_totp=True)
+        st.success("✅ Logged in successfully")
+        st.json(resp)
+    except SessionError as e:
+        st.error(str(e))
 
-with col1:
-    if st.button("Login with TOTP (auto)"):
-        try:
-            if sm.login_with_totp():
-                st.success("✅ Login Successful with TOTP")
-            else:
-                st.error("❌ Login Failed with TOTP")
-        except SessionError as e:
-            st.error(str(e))
-
-with col2:
-    if st.button("Step 1: Request OTP"):
-        otp_token = sm.request_otp()
-        st.session_state["otp_token"] = otp_token
-        st.info(f"OTP Token generated: {otp_token}")
-
-    otp_code = st.text_input("Enter OTP")
-    if st.button("Step 2: Verify OTP"):
-        otp_token = st.session_state.get("otp_token")
-        if not otp_token:
-            st.warning("Please request OTP first")
-        else:
-            if sm.verify_otp(otp_token, otp_code):
-                st.success("✅ Login Successful with Manual OTP")
-            else:
-                st.error("❌ OTP Verification Failed")
-
-# ----------------------------
-# Status
-# ----------------------------
 st.divider()
-st.subheader("Session Status")
+st.subheader("📌 Session Status")
 if sm.is_logged_in():
-    st.success("✅ Logged in")
+    st.success("Session Active")
     st.json(sm.get_auth_headers())
 else:
     st.error("❌ Not logged in")
+
+# --- Example: Holdings API ---
+st.divider()
+st.subheader("📊 Example API Call (Holdings)")
+
+if sm.is_logged_in():
+    if st.button("Get Holdings"):
+        try:
+            data = sm.call_api("GET", "/integrate/v1/portfolio/holdings")
+            st.write("Holdings:")
+            st.json(data)
+        except SessionError as e:
+            st.error(str(e))
+else:
+    st.warning("⚠️ Please login first.")
