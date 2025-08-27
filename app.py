@@ -1,48 +1,29 @@
 import streamlit as st
-from utils.api_utils import SessionManager, SessionError
+from utils import api_utils
 
-st.set_page_config(page_title="TradeBot", layout="wide")
-st.title("💹 Definedge TradeBot")
+st.title("Definedge Secure Login")
 
-# ✅ Load credentials from secrets
-api_token = st.secrets["INTEGRATE_API_TOKEN"]
-api_secret = st.secrets["INTEGRATE_API_SECRET"]
-totp_secret = st.secrets.get("TOTP_SECRET")
+if "otp_token" not in st.session_state:
+    st.session_state.otp_token = None
+if "api_session_key" not in st.session_state:
+    st.session_state.api_session_key = None
 
-# ✅ Initialize SessionManager
-if "sm" not in st.session_state:
-    st.session_state["sm"] = SessionManager(api_token, api_secret, totp_secret)
-
-sm = st.session_state["sm"]
-
-# --- Login Button ---
-if st.button("🔑 Login"):
+# Step 1
+if st.button("Send OTP"):
     try:
-        resp = sm.login(prefer_totp=True)
-        st.success("✅ Logged in successfully")
-        st.json(resp)
-    except SessionError as e:
-        st.error(str(e))
+        res = api_utils.login_step1()
+        st.session_state.otp_token = res.get("otp_token")
+        st.success(f"OTP sent ✅ (Check mobile/email)")
+    except Exception as e:
+        st.error(f"Error in Step 1: {e}")
 
-st.divider()
-st.subheader("📌 Session Status")
-if sm.is_logged_in():
-    st.success("Session Active")
-    st.json(sm.get_auth_headers())
-else:
-    st.error("❌ Not logged in")
-
-# --- Example: Holdings API ---
-st.divider()
-st.subheader("📊 Example API Call (Holdings)")
-
-if sm.is_logged_in():
-    if st.button("Get Holdings"):
+# Step 2
+if st.session_state.otp_token:
+    otp = st.text_input("Enter OTP", type="password")
+    if st.button("Verify OTP"):
         try:
-            data = sm.call_api("GET", "/integrate/v1/portfolio/holdings")
-            st.write("Holdings:")
-            st.json(data)
-        except SessionError as e:
-            st.error(str(e))
-else:
-    st.warning("⚠️ Please login first.")
+            res = api_utils.login_step2(st.session_state.otp_token, otp)
+            st.session_state.api_session_key = res.get("api_session_key")
+            st.success(f"Login Successful 🎉\nAPI Session Key: {st.session_state.api_session_key}")
+        except Exception as e:
+            st.error(f"Error in Step 2: {e}")
